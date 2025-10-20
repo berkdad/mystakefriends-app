@@ -22,33 +22,15 @@ class AuthService {
       if (credential.user != null) {
         print('✅ Sign in successful. UID: ${credential.user!.uid}');
 
-        // Check if user document exists
-        final userDoc = await _firestore
-            .collection('users')
-            .doc(credential.user!.uid)
-            .get();
+        // Update user document (non-blocking)
+        _updateUserLoginStatus(credential.user!.uid).catchError((e) {
+          print('⚠️ Error updating login status: $e');
+        });
 
-        if (userDoc.exists) {
-          print('📄 User document found');
-
-          // Update hasLoggedIn flag
-          await _firestore
-              .collection('users')
-              .doc(credential.user!.uid)
-              .update({
-            'hasLoggedIn': true,
-            'lastLoginAt': FieldValue.serverTimestamp(),
-          });
-          print('✅ Updated hasLoggedIn flag');
-        } else {
-          print('⚠️ User document does NOT exist in users collection');
-        }
-
-        // Initialize FCM and save token
-        print('📱 Initializing FCM...');
-        await _fcmService.initialize();
-        await _fcmService.saveTokenToFirestore(credential.user!.uid);
-        print('✅ FCM token saved');
+        // Initialize FCM in background (non-blocking)
+        _initializeFCMInBackground(credential.user!.uid).catchError((e) {
+          print('⚠️ FCM initialization error: $e');
+        });
       }
 
       return credential;
@@ -58,6 +40,48 @@ class AuthService {
     } catch (e) {
       print('❌ Unexpected error during sign in: $e');
       rethrow;
+    }
+  }
+
+// Non-blocking user status update
+  Future<void> _updateUserLoginStatus(String uid) async {
+    try {
+      final userDoc = await _firestore.collection('users').doc(uid).get();
+
+      if (userDoc.exists) {
+        print('📄 User document found');
+        await _firestore.collection('users').doc(uid).update({
+          'hasLoggedIn': true,
+          'lastLoginAt': FieldValue.serverTimestamp(),
+        });
+        print('✅ Updated hasLoggedIn flag');
+      } else {
+        print('⚠️ User document does NOT exist in users collection');
+      }
+    } catch (e) {
+      print('❌ Error updating user status: $e');
+    }
+  }
+
+// Non-blocking FCM initialization
+  Future<void> _initializeFCMInBackground(String uid) async {
+    try {
+      print('📱 Initializing FCM...');
+      await _fcmService.initialize().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          print('⚠️ FCM initialization timeout');
+        },
+      );
+      await _fcmService.saveTokenToFirestore(uid).timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          print('⚠️ FCM token save timeout');
+        },
+      );
+      print('✅ FCM token saved');
+    } catch (e) {
+      print('⚠️ FCM error (non-critical): $e');
     }
   }
 

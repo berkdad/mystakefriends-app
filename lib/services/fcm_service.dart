@@ -18,47 +18,67 @@ class FCMService {
   bool _isInitialized = false;
 
   Future<void> initialize() async {
-    if (_isInitialized) return;
+    if (_isInitialized) {
+      print('FCM: Already initialized, skipping');
+      return;
+    }
 
-    await _requestPermission();
-    await _setupLocalNotifications();
-    await _setupMessageHandlers();
-
-    _isInitialized = true;
+    try {
+      print('FCM: Starting initialization...');
+      await _requestPermission();
+      await _setupLocalNotifications();
+      await _setupMessageHandlers();
+      _isInitialized = true;
+      print('FCM: Initialization complete');
+    } catch (e) {
+      print('FCM: Initialization error: $e');
+      // Don't rethrow - FCM is non-critical
+    }
   }
 
   Future<void> _requestPermission() async {
-    final settings = await _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-      provisional: false,
-    );
+    try {
+      final settings = await _messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
+      );
 
-    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      print('FCM: User granted permission');
-    } else {
-      print('FCM: User declined permission');
+      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+        print('FCM: User granted permission');
+      } else {
+        print('FCM: User declined permission');
+      }
+    } catch (e) {
+      print('FCM: Permission request error: $e');
     }
   }
 
   Future<void> _setupLocalNotifications() async {
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-    );
+    try {
+      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    const initSettings = InitializationSettings(
-      android: androidSettings,
-      iOS: iosSettings,
-    );
+      // Don't request permissions here - already done in _requestPermission()
+      const iosSettings = DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      );
 
-    await _localNotifications.initialize(
-      initSettings,
-      onDidReceiveNotificationResponse: _onNotificationTapped,
-    );
+      const initSettings = InitializationSettings(
+        android: androidSettings,
+        iOS: iosSettings,
+      );
+
+      await _localNotifications.initialize(
+        initSettings,
+        onDidReceiveNotificationResponse: _onNotificationTapped,
+      );
+      print('FCM: Local notifications setup complete');
+    } catch (e) {
+      print('FCM: Local notifications setup error: $e');
+    }
   }
 
   void _onNotificationTapped(NotificationResponse response) {
@@ -67,19 +87,24 @@ class FCMService {
   }
 
   Future<void> _setupMessageHandlers() async {
-    // Handle foreground messages
-    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+    try {
+      // Handle foreground messages
+      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
-    // Handle background messages
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      // Handle background messages
+      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-    // Handle notification tap when app is in background
-    FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
+      // Handle notification tap when app is in background
+      FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
 
-    // Check if app was opened from a terminated state
-    final initialMessage = await _messaging.getInitialMessage();
-    if (initialMessage != null) {
-      _handleMessageOpenedApp(initialMessage);
+      // Check if app was opened from a terminated state
+      final initialMessage = await _messaging.getInitialMessage();
+      if (initialMessage != null) {
+        _handleMessageOpenedApp(initialMessage);
+      }
+      print('FCM: Message handlers setup complete');
+    } catch (e) {
+      print('FCM: Message handlers setup error: $e');
     }
   }
 
@@ -148,10 +173,13 @@ class FCMService {
   }
 
   Future<void> saveTokenToFirestore(String userId) async {
-    final token = await getToken();
-    if (token == null) return;
-
     try {
+      final token = await getToken();
+      if (token == null) {
+        print('FCM: No token available to save');
+        return;
+      }
+
       final tokenDoc = FirebaseFirestore.instance
           .collection('fcmTokens')
           .doc(userId)
@@ -172,10 +200,10 @@ class FCMService {
   }
 
   Future<void> deleteTokenFromFirestore(String userId) async {
-    final token = _currentToken ?? await getToken();
-    if (token == null) return;
-
     try {
+      final token = _currentToken ?? await getToken();
+      if (token == null) return;
+
       await FirebaseFirestore.instance
           .collection('fcmTokens')
           .doc(userId)

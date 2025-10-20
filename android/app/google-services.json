@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "18358580651",
+    "project_id": "mystakefriends",
+    "storage_bucket": "mystakefriends.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:18358580651:android:9ee9bcc2b160e8f8880eee",
+        "android_client_info": {
+          "package_name": "com.jkbinnovations.mystakefriends"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDdMJFwAPV9-NpwudtsfitboXftCUA7SEE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
