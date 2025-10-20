@@ -5,7 +5,7 @@
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
-		<string>Mystakefriends App</string>
+		<string>MyStakeFriends</string>
 		<key>CFBundleExecutable</key>
 		<string>$(EXECUTABLE_NAME)</string>
 		<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 		<key>CFBundleInfoDictionaryVersion</key>
 		<string>6.0</string>
 		<key>CFBundleName</key>
-		<string>mystakefriends_app</string>
+		<string>mystakefriends</string>
 		<key>CFBundlePackageType</key>
 		<string>APPL</string>
 		<key>CFBundleShortVersionString</key>
@@ -46,6 +46,25 @@
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
 		<key>UIStatusBarHidden</key>
+		<false/>
+
+		<!-- Camera Permission -->
+		<key>NSCameraUsageDescription</key>
+		<string>We need access to your camera to take profile pictures</string>
+
+		<!-- Photo Library Permission -->
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>We need access to your photo library to select profile pictures</string>
+
+		<!-- Push Notifications -->
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>fetch</string>
+			<string>remote-notification</string>
+		</array>
+
+		<!-- Firebase Dynamic Links (if needed) -->
+		<key>FirebaseAppDelegateProxyEnabled</key>
 		<false/>
 	</dict>
 </plist>

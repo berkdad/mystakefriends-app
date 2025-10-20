@@ -11,6 +11,7 @@ import '../theme/app_theme.dart';
 import 'chat_screen.dart';
 import 'activities_screen.dart';
 import 'profile_screen.dart';
+import '../widgets/event_detail_modal.dart';
 import 'circle_members_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -37,6 +38,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _initializeDashboard();
   }
 
+  // Replace your _initializeDashboard method with this:
   Future<void> _initializeDashboard() async {
     final authService = Provider.of<AuthService>(context, listen: false);
     final fcmService = Provider.of<FCMService>(context, listen: false);
@@ -128,55 +130,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .where((m) => myCircle!.memberIds.contains(m.id))
           .toList();
 
-      // Load recent chats
-      final chatsSnapshot = await _firestore
-          .collection('stakes')
-          .doc(stakeId)
-          .collection('wards')
-          .doc(wardId)
-          .collection('circles')
-          .doc(myCircle.id)
-          .collection('chats')
-          .orderBy('createdAt', descending: true)
-          .limit(5)
-          .get();
-
-      final recentChats = chatsSnapshot.docs
-          .map((doc) => ChatMessage.fromFirestore(doc))
-          .toList();
-
-      // Load upcoming events
-      final now = DateTime.now().toIso8601String();
-      final eventsSnapshot = await _firestore
-          .collection('stakes')
-          .doc(stakeId)
-          .collection('wards')
-          .doc(wardId)
-          .collection('circles')
-          .doc(myCircle.id)
-          .collection('events')
-          .where('eventDate', isGreaterThanOrEqualTo: now)
-          .orderBy('eventDate')
-          .limit(5)
-          .get();
-
-      final upcomingEvents = eventsSnapshot.docs
-          .map((doc) => CircleEvent.fromFirestore(doc))
-          .toList();
-
-      // Add birthday events for circle members
-      final birthdayEvents = _generateBirthdayEvents(circleMembers, member.id);
-      upcomingEvents.addAll(birthdayEvents);
-      upcomingEvents.sort((a, b) => a.eventDate.compareTo(b.eventDate));
-
       setState(() {
         _currentMember = member;
         _myCircle = myCircle;
         _circleMembers = circleMembers;
-        _recentChats = recentChats;
-        _upcomingEvents = upcomingEvents.take(5).toList();
         _isLoading = false;
       });
+
+      // Start listening to real-time updates
+      _listenToRealtimeUpdates(stakeId, wardId, myCircle.id);
 
     } catch (e) {
       print('Error loading dashboard: $e');
@@ -187,10 +149,67 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+// Add this new method:
+  void _listenToRealtimeUpdates(String stakeId, String wardId, String circleId) {
+    // Listen to recent chats
+    _firestore
+        .collection('stakes')
+        .doc(stakeId)
+        .collection('wards')
+        .doc(wardId)
+        .collection('circles')
+        .doc(circleId)
+        .collection('chats')
+        .orderBy('createdAt', descending: true)
+        .limit(3)
+        .snapshots()
+        .listen((snapshot) {
+      if (mounted) {
+        setState(() {
+          _recentChats = snapshot.docs
+              .map((doc) => ChatMessage.fromFirestore(doc))
+              .toList();
+        });
+      }
+    });
+
+    // Listen to upcoming events
+    final now = DateTime.now().toIso8601String();
+    _firestore
+        .collection('stakes')
+        .doc(stakeId)
+        .collection('wards')
+        .doc(wardId)
+        .collection('circles')
+        .doc(circleId)
+        .collection('events')
+        .where('eventDate', isGreaterThanOrEqualTo: now)
+        .orderBy('eventDate')
+        .limit(5)
+        .snapshots()
+        .listen((snapshot) {
+      if (mounted) {
+        var upcomingEvents = snapshot.docs
+            .map((doc) => CircleEvent.fromFirestore(doc))
+            .toList();
+
+        // Add birthday events
+        final birthdayEvents = _generateBirthdayEvents(_circleMembers, _currentMember!.id);
+        upcomingEvents.addAll(birthdayEvents);
+        upcomingEvents.sort((a, b) => a.eventDate.compareTo(b.eventDate));
+
+        setState(() {
+          _upcomingEvents = upcomingEvents.take(5).toList();
+        });
+      }
+    });
+  }
+
   List<CircleEvent> _generateBirthdayEvents(List<Member> members, String currentMemberId) {
     final events = <CircleEvent>[];
     final now = DateTime.now();
-    final oneYearFromNow = now.add(const Duration(days: 365));
+    final currentMonth = now.month;
+    final currentYear = now.year;
 
     for (var member in members) {
       if (member.dob == null || member.id == currentMemberId) continue;
@@ -202,15 +221,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final month = int.parse(parts[0]);
         final day = int.parse(parts[1]);
 
+        // Only show birthdays in the current month
+        if (month != currentMonth) continue;
+
         // Create birthday for this year
-        var birthdayThisYear = DateTime(now.year, month, day);
+        var birthdayThisYear = DateTime(currentYear, month, day);
 
-        // If already passed, create for next year
-        if (birthdayThisYear.isBefore(now)) {
-          birthdayThisYear = DateTime(now.year + 1, month, day);
-        }
-
-        if (birthdayThisYear.isBefore(oneYearFromNow)) {
+        // Only add if the birthday hasn't passed yet this month
+        if (birthdayThisYear.isAfter(now.subtract(const Duration(days: 1)))) {
           events.add(CircleEvent(
             id: 'birthday_${member.id}',
             title: '🎂 ${member.displayName}\'s Birthday',
@@ -299,7 +317,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('My Stake Friends'),
+            const Text('My Circle'),
             if (_myCircle != null)
               Text(
                 _myCircle!.name,
@@ -583,6 +601,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _formatTimestamp(chat.createdAt),
           style: Theme.of(context).textTheme.bodySmall,
         ),
+        onTap: () {
+          if (_myCircle != null && _currentMember != null) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ChatScreen(
+                  circle: _myCircle!,
+                  currentMember: _currentMember!,
+                  circleMembers: _circleMembers,
+                ),
+              ),
+            );
+          }
+        },
       ),
     );
   }
@@ -674,6 +706,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
           backgroundColor: AppTheme.amberPrimary.withOpacity(0.3),
         )
             : null,
+        onTap: event.isBirthday
+            ? null
+            : () async {
+          // Get user data for the modal
+          final authService = Provider.of<AuthService>(context, listen: false);
+          final userData = await authService.getUserData();
+
+          if (userData != null && _myCircle != null && _currentMember != null) {
+            showDialog(
+              context: context,
+              builder: (context) => EventDetailModal(
+                event: event,
+                circle: _myCircle!,
+                currentMember: _currentMember!,
+                userData: userData,
+              ),
+            );
+          }
+        },
       ),
     );
   }

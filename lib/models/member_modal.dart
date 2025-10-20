@@ -73,45 +73,85 @@ class Member {
 
   factory Member.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+
     return Member(
       id: doc.id,
-      fullName: data['fullName'] ?? '',
-      email: data['email'] ?? '',
-      preferredName: data['preferredName'],
-      aboutMe: data['aboutMe'],
-      phone: data['phone'],
-      address: data['address'],
-      dob: data['dob'],
-      maritalStatus: data['maritalStatus'],
-      anniversary: data['anniversary'],
-      ethnicity: data['ethnicity'],
-      spouseName: data['spouseName'],
-      numChildren: data['numChildren'],
-      childrenNames: data['childrenNames'],
-      occupation: data['occupation'],
-      employer: data['employer'],
-      education: data['education'],
-      hobbies: data['hobbies'],
-      interests: data['interests'],
-      talents: data['talents'],
-      favoriteBooks: data['favoriteBooks'],
-      favoriteMusic: data['favoriteMusic'],
-      spiritualJourney: data['spiritualJourney'],
-      favoriteScripture: data['favoriteScripture'],
-      testimony: data['testimony'],
-      callings: data['callings'],
-      personalGoals: data['personalGoals'],
-      familyGoals: data['familyGoals'],
-      spiritualGoals: data['spiritualGoals'],
-      profilePicUrl: data['profilePicUrl'],
+      fullName: _safeString(data['fullName']) ?? '',
+      email: _safeString(data['email']) ?? '',
+      preferredName: _safeString(data['preferredName']),
+      aboutMe: _safeString(data['aboutMe']),
+      phone: _safeString(data['phone']),
+      address: _safeString(data['address']),
+      dob: _safeString(data['dob']),
+      maritalStatus: _safeString(data['maritalStatus']),
+      anniversary: _safeString(data['anniversary']),
+      ethnicity: _safeString(data['ethnicity']),
+      spouseName: _safeString(data['spouseName']),
+      numChildren: _safeString(data['numChildren']),
+      childrenNames: _safeString(data['childrenNames']),
+      occupation: _safeString(data['occupation']),
+      employer: _safeString(data['employer']),
+      education: _safeString(data['education']),
+      hobbies: _safeString(data['hobbies']),
+      interests: _safeString(data['interests']),
+      talents: _safeString(data['talents']),
+      favoriteBooks: _safeString(data['favoriteBooks']),
+      favoriteMusic: _safeString(data['favoriteMusic']),
+      spiritualJourney: _safeString(data['spiritualJourney']),
+      favoriteScripture: _safeString(data['favoriteScripture']),
+      testimony: _safeString(data['testimony']),
+      callings: _safeString(data['callings']),
+      personalGoals: _safeString(data['personalGoals']),
+      familyGoals: _safeString(data['familyGoals']),
+      spiritualGoals: _safeString(data['spiritualGoals']),
+      profilePicUrl: _safeString(data['profilePicUrl']),
       hasLoggedIn: data['hasLoggedIn'] ?? false,
-      createdAt: data['createdAt'] != null
-          ? (data['createdAt'] as Timestamp).toDate()
-          : null,
-      updatedAt: data['updatedAt'] != null
-          ? (data['updatedAt'] as Timestamp).toDate()
-          : null,
+      createdAt: _parseDateTime(data['createdAt']),
+      updatedAt: _parseDateTime(data['updatedAt']),
     );
+  }
+
+  static String? _safeString(dynamic value) {
+    if (value == null) return null;
+
+    try {
+      if (value is String) {
+        return value.isEmpty ? null : value;
+      }
+
+      if (value is List) {
+        if (value.isEmpty) return null;
+        return value.join(', ');
+      }
+
+      return value.toString();
+    } catch (e) {
+      print('Error parsing string value: $e');
+      return null;
+    }
+  }
+
+  static DateTime? _parseDateTime(dynamic value) {
+    if (value == null) return null;
+
+    try {
+      if (value is Timestamp) {
+        return value.toDate();
+      }
+
+      if (value is String) {
+        return DateTime.parse(value);
+      }
+
+      if (value is int) {
+        return DateTime.fromMillisecondsSinceEpoch(value);
+      }
+
+      return null;
+    } catch (e) {
+      print('Error parsing datetime: $e');
+      return null;
+    }
   }
 
   Map<String, dynamic> toFirestore() {
@@ -158,9 +198,9 @@ class Member {
       final parts = dob!.split('/');
       if (parts.length != 3) return null;
       final birthDate = DateTime(
-        int.parse(parts[2]), // year
-        int.parse(parts[0]), // month
-        int.parse(parts[1]), // day
+        int.parse(parts[2]),
+        int.parse(parts[0]),
+        int.parse(parts[1]),
       );
       final today = DateTime.now();
       int age = today.year - birthDate.year;

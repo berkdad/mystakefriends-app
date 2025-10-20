@@ -125,33 +125,97 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _pickAndUploadProfilePic() async {
+    print('📸 Opening image picker dialog');
+
+    // Show dialog to choose camera or gallery
+    final ImageSource? source = await showDialog<ImageSource>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Choose Photo Source'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: AppTheme.rosePrimary),
+                title: const Text('Take Photo'),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: AppTheme.bluePrimary),
+                title: const Text('Choose from Gallery'),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (source == null) {
+      print('❌ No source selected');
+      return;
+    }
+
+    print('✅ Source selected: $source');
+
     try {
+      print('📷 Attempting to pick image...');
       final XFile? image = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
+        source: source,
         maxWidth: 800,
         maxHeight: 800,
         imageQuality: 85,
       );
 
-      if (image == null) return;
+      if (image == null) {
+        print('❌ No image selected');
+        return;
+      }
 
+      print('✅ Image picked: ${image.path}');
+      print('📁 File size: ${await image.length()} bytes');
+
+      if (!mounted) return;
       setState(() => _isUploading = true);
 
+      print('☁️ Uploading to Firebase Storage...');
       final storageRef = _storage.ref().child('profilePics/${widget.member.id}');
-      final uploadTask = storageRef.putFile(File(image.path));
-      final snapshot = await uploadTask;
-      final downloadUrl = await snapshot.ref.getDownloadURL();
 
+      print('📤 Starting upload...');
+      final uploadTask = storageRef.putFile(File(image.path));
+
+      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
+        final progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        print('Upload progress: ${progress.toStringAsFixed(2)}%');
+      });
+
+      final snapshot = await uploadTask;
+      print('✅ Upload complete!');
+
+      print('🔗 Getting download URL...');
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+      print('✅ Download URL: $downloadUrl');
+
+      if (!mounted) return;
       setState(() {
         _profilePicUrl = downloadUrl;
         _isUploading = false;
       });
 
+      print('✅ Profile picture updated in UI');
+
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile picture uploaded!')),
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ Error uploading picture: $e');
+      print('Stack trace: $stackTrace');
+
+      if (!mounted) return;
       setState(() => _isUploading = false);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error uploading picture: $e')),
       );

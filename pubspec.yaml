@@ -1,5 +1,5 @@
 name: mystakefriends
-description: My Stake Friends - Hearts Knit in Unity
+description: "MyStakeFriends mobile app"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -11,11 +11,13 @@ dependencies:
     sdk: flutter
   
   # Firebase
-  firebase_core: ^2.24.2
-  firebase_auth: ^4.15.3
-  cloud_firestore: ^4.13.6
-  firebase_storage: ^11.5.6
-  firebase_messaging: ^14.7.9
+  firebase_core: ^3.5.0 #^2.24.2
+  firebase_auth: ^5.4.0 #4.17.8
+  cloud_firestore: ^5.6.7 #4.13.6
+  firebase_storage: ^12.3.0 #11.5.6
+  firebase_messaging: ^15.0.4 #14.7.9
+  cloud_functions: ^5.6.2 #4.5.8
+  http: ^1.1.0
   
   # State Management
   provider: ^6.1.1
@@ -37,7 +39,7 @@ dependencies:
   flutter_native_splash: ^2.3.5
   
   # Notifications
-  flutter_local_notifications: ^16.3.0
+  flutter_local_notifications: ^17.2.3
 
 dev_dependencies:
   flutter_test:
@@ -59,12 +61,3 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
-  
-  assets:
-    - assets/images/
-    - assets/icons/
-  
-  fonts:
-    - family: CustomIcons
-      fonts:
-        - asset: assets/fonts/CustomIcons.ttf

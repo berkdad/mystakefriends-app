@@ -29,7 +29,7 @@ class MyStakeFriendsApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'My Stake Friends',
+        title: 'My Circle',
         theme: AppTheme.lightTheme,
         debugShowCheckedModeBanner: false,
         home: const AuthWrapper(),

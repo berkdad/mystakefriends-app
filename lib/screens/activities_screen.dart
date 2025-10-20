@@ -47,7 +47,8 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> with SingleTickerPr
   List<CircleEvent> _generateBirthdayEvents(List<Member> members, String currentMemberId) {
     final events = <CircleEvent>[];
     final now = DateTime.now();
-    final oneYearFromNow = now.add(const Duration(days: 365));
+    final currentMonth = now.month;
+    final currentYear = now.year;
 
     for (var member in members) {
       if (member.dob == null || member.id == currentMemberId) continue;
@@ -59,13 +60,14 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> with SingleTickerPr
         final month = int.parse(parts[0]);
         final day = int.parse(parts[1]);
 
-        var birthdayThisYear = DateTime(now.year, month, day);
+        // Only show birthdays in the current month
+        if (month != currentMonth) continue;
 
-        if (birthdayThisYear.isBefore(now)) {
-          birthdayThisYear = DateTime(now.year + 1, month, day);
-        }
+        // Create birthday for this year
+        var birthdayThisYear = DateTime(currentYear, month, day);
 
-        if (birthdayThisYear.isBefore(oneYearFromNow)) {
+        // Only add if the birthday hasn't passed yet this month
+        if (birthdayThisYear.isAfter(now.subtract(const Duration(days: 1)))) {
           events.add(CircleEvent(
             id: 'birthday_${member.id}',
             title: '🎂 ${member.displayName}\'s Birthday',

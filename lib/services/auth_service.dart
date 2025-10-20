@@ -12,53 +12,165 @@ class AuthService {
 
   Future<UserCredential?> signIn(String email, String password) async {
     try {
+      print('🔐 Attempting sign in for: $email');
+
       final credential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
       if (credential.user != null) {
-        // Update hasLoggedIn flag
-        await _firestore
+        print('✅ Sign in successful. UID: ${credential.user!.uid}');
+
+        // Check if user document exists
+        final userDoc = await _firestore
             .collection('users')
             .doc(credential.user!.uid)
-            .update({
-          'hasLoggedIn': true,
-          'lastLoginAt': FieldValue.serverTimestamp(),
-        });
+            .get();
+
+        if (userDoc.exists) {
+          print('📄 User document found');
+
+          // Update hasLoggedIn flag
+          await _firestore
+              .collection('users')
+              .doc(credential.user!.uid)
+              .update({
+            'hasLoggedIn': true,
+            'lastLoginAt': FieldValue.serverTimestamp(),
+          });
+          print('✅ Updated hasLoggedIn flag');
+        } else {
+          print('⚠️ User document does NOT exist in users collection');
+        }
 
         // Initialize FCM and save token
+        print('📱 Initializing FCM...');
         await _fcmService.initialize();
         await _fcmService.saveTokenToFirestore(credential.user!.uid);
+        print('✅ FCM token saved');
       }
 
       return credential;
     } on FirebaseAuthException catch (e) {
+      print('❌ Auth error: ${e.code} - ${e.message}');
       throw _handleAuthException(e);
+    } catch (e) {
+      print('❌ Unexpected error during sign in: $e');
+      rethrow;
     }
   }
 
   Future<void> signOut() async {
     if (currentUser != null) {
+      print('🚪 Signing out user: ${currentUser!.uid}');
       await _fcmService.deleteTokenFromFirestore(currentUser!.uid);
     }
     await _auth.signOut();
+    print('✅ Sign out complete');
   }
 
   Future<Map<String, dynamic>?> getUserData() async {
-    if (currentUser == null) return null;
+    if (currentUser == null) {
+      print('⚠️ getUserData: No current user');
+      return null;
+    }
 
     try {
+      print('📊 Getting user data for: ${currentUser!.uid}');
+      print('   Email: ${currentUser!.email}');
+
       final doc = await _firestore
           .collection('users')
           .doc(currentUser!.uid)
           .get();
 
-      if (!doc.exists) return null;
+      if (!doc.exists) {
+        print('❌ User document does NOT exist');
+        return null;
+      }
 
-      return doc.data();
+      final data = doc.data();
+      print('✅ User data retrieved:');
+      print('   stakeId: ${data?['stakeId']}');
+      print('   wardId: ${data?['wardId']}');
+      print('   hasLoggedIn: ${data?['hasLoggedIn']}');
+
+      // If wardId is null, try to find it by searching for the member
+      if (data?['wardId'] == null && data?['stakeId'] != null) {
+        print('🔍 wardId is null, searching for member in stake...');
+        final memberData = await _findMemberInStake(
+          data!['stakeId'],
+          currentUser!.email!,
+        );
+
+        if (memberData != null) {
+          print('✅ Found member! wardId: ${memberData['wardId']}');
+
+          // Update the user document with the found wardId
+          await _firestore
+              .collection('users')
+              .doc(currentUser!.uid)
+              .update({'wardId': memberData['wardId']});
+
+          print('✅ Updated user document with wardId');
+
+          // Return updated data
+          data['wardId'] = memberData['wardId'];
+          data['memberId'] = memberData['memberId'];
+        } else {
+          print('❌ Member not found in any ward in this stake');
+        }
+      }
+
+      return data;
     } catch (e) {
-      print('Error getting user data: $e');
+      print('❌ Error getting user data: $e');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> _findMemberInStake(
+      String stakeId, String email) async {
+    try {
+      print('🔍 Searching for member with email: $email in stake: $stakeId');
+
+      // Get all wards in the stake
+      final wardsSnapshot = await _firestore
+          .collection('stakes')
+          .doc(stakeId)
+          .collection('wards')
+          .get();
+
+      print('📋 Found ${wardsSnapshot.docs.length} wards to search');
+
+      // Search each ward for the member
+      for (final wardDoc in wardsSnapshot.docs) {
+        print('   Checking ward: ${wardDoc.id}');
+
+        final membersSnapshot = await _firestore
+            .collection('stakes')
+            .doc(stakeId)
+            .collection('wards')
+            .doc(wardDoc.id)
+            .collection('members')
+            .where('email', isEqualTo: email)
+            .limit(1)
+            .get();
+
+        if (membersSnapshot.docs.isNotEmpty) {
+          print('   ✅ Found member in ward: ${wardDoc.id}');
+          return {
+            'wardId': wardDoc.id,
+            'memberId': membersSnapshot.docs.first.id,
+          };
+        }
+      }
+
+      print('❌ Member not found in any ward');
+      return null;
+    } catch (e) {
+      print('❌ Error searching for member: $e');
       return null;
     }
   }
@@ -66,6 +178,11 @@ class AuthService {
   Future<DocumentSnapshot?> getMemberProfile(
       String stakeId, String wardId, String email) async {
     try {
+      print('👤 Getting member profile:');
+      print('   stakeId: $stakeId');
+      print('   wardId: $wardId');
+      print('   email: $email');
+
       final querySnapshot = await _firestore
           .collection('stakes')
           .doc(stakeId)
@@ -76,11 +193,15 @@ class AuthService {
           .limit(1)
           .get();
 
-      if (querySnapshot.docs.isEmpty) return null;
+      if (querySnapshot.docs.isEmpty) {
+        print('❌ No member profile found');
+        return null;
+      }
 
+      print('✅ Member profile found: ${querySnapshot.docs.first.id}');
       return querySnapshot.docs.first;
     } catch (e) {
-      print('Error getting member profile: $e');
+      print('❌ Error getting member profile: $e');
       return null;
     }
   }
